@@ -29,6 +29,7 @@ package com.jimdo.upload {
     private var idCounter:int = 0;
     private var currentFile:File;
     
+    
     public function Upload():void {
       stage && init() || addEventListener(Event.ADDED_TO_STAGE, init);
     }
@@ -218,12 +219,12 @@ class File extends EventDispatcher {
     this._fileRef.addEventListener(ProgressEvent.PROGRESS,  function(e:Event):void {
       file.dispatchEvent(e);
     });
-    
-    //this._fileRef.load();
-   
+       
     /* Simple Upload */
     /* No Custom Header - doesn't support cookies. */
-    var url:String = "http://localhost/fileupload/server/test3.php";
+    //var url:String = "http://localhost/fileupload/server/test3.php";
+    //ExternalInterface.call("console.log", url);
+    
     var request:URLRequest = new URLRequest(url);
     request.method = URLRequestMethod.POST;
     var postvars:URLVariables = new URLVariables();
