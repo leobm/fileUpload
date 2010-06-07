@@ -16,7 +16,6 @@
 
 <style>
 
-
 </style>
 </head> 
 
@@ -24,38 +23,71 @@
 
 <form id="test1" action="../server/test.php">
 	Normal upload<br />
-	<input type="file" name="first"/><br />
+	<input type="file" name="first" /><br />
 </form>
-<form id="test2" action="../server/test2.php">
+
+<form id="test2" action="../server/test.php">
 	Multiple files upload<br />
 	<input type="file" name="second" multiple="multiple"/><br />
 </form>
 
+<form id="test3" action="../server/test.php">
+	Flash upload<br />
+	<input type="file" name="third" id="third" class="flash" /><br />
+</form>
+
+<div id="file_list"></div>
 <div id="progressbar"></div>
 
 
 
 <script type="text/javascript">
 
-
 var $bar = $('#progressbar').progressbar();
-$('#test1, #test2').bind('change', function(){
-	$bar.progressbar('value', 0);
-	$(this).fileUpload({
-		progress: function(pr, xhr) {
-			$bar.progressbar('value', 100*pr.loaded/pr.total);
-		},
-		success: function(r){
-			var href = location.href + '/server/files/' + r.filename;
-			$('<a href="'+href+'" target="_blank">'+r.filename+'</a><br />').appendTo(document.body);
-		},
-		completeall: function() {
-		
-		}
-	});
-	return false;
+$bar.progressbar('value', 0);
+    
+$('#test1').fileUpload({
+  runtime: 'iframe',
+  progress: function(pr, xhr) {
+
+    $bar.progressbar('value', 100*pr.loaded/pr.total);
+  },
+  success: function(r){
+    var href = '/fileupload/server/files/' + r.filename;
+    $('<a href="'+href+'" target="_blank">'+r.filename+'</a><br />').appendTo('#file_list');
+  },
+  completeall: function(r) {
+    console.log("completeall",r);
+  }
+});
+$('#test2').fileUpload({
+  runtime: 'html5',
+  progress: function(pr, xhr) {
+
+    $bar.progressbar('value', 100*pr.loaded/pr.total);
+  },
+  success: function(r){
+    var href = '/fileupload/server/files/' + r.filename;
+    $('<a href="'+href+'" target="_blank">'+r.filename+'</a><br />').appendTo('#file_list');
+  },
+  completeall: function(r) {
+    console.log("completeall",r);
+  }
 });
 
+$('#test3').fileUpload({
+  runtime: 'flash',
+  progress: function(pr, xhr) {
+    $bar.progressbar('value', 100*pr.loaded/pr.total);
+  },
+  success: function(r){
+    var href = '/fileupload/server/files/' + r.filename;
+    $('<a href="'+href+'" target="_blank">'+r.filename+'</a><br />').appendTo('#file_list');
+  },
+  completeall: function(r) {
+    console.log("completeall",r);
+  }
+});
 </script>
 
 </body>
