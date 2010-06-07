@@ -60,10 +60,11 @@ $('#test1').fileUpload({
     console.log("completeall",r);
   }
 });
+
 $('#test2').fileUpload({
   runtime: 'html5',
   progress: function(pr, xhr) {
-
+    console.log("progress:", pr);
     $bar.progressbar('value', 100*pr.loaded/pr.total);
   },
   success: function(r){

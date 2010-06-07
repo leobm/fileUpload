@@ -90,7 +90,7 @@ function Uploader( r, form, s ) {
       $.each(files, function send( i, data ){
           
         var xhr = _xhr(),
-          _send = xhr.send,
+          _send = xhr.sendAsBinary //xhr.send,
           file = data.file;
           
         s.xhr = function() {
@@ -100,27 +100,36 @@ function Uploader( r, form, s ) {
         xhr.send = function() {
           //xhr.setRequestHeader('Content-Type','application/octet-stream');
           xhr.setRequestHeader("Content-Type", "multipart/form-data");
+          xhr.setRequestHeader("Cache-Control", "no-cache");
           xhr.setRequestHeader('X-File-Name', file.fileName);
           xhr.setRequestHeader('X-File-Size', file.fileSize);
           _send.call(this, file);
         };
     
         xhr.onload = function( load ) {
-          loaded = loaded + load.total;
+          data.loaded = file.fileSize;
+          data.complete = true;
           files.loaded ++;
-          onprogress.call(this, { loaded: total, total: total});
-          files.loaded == files.length && s.completeall.call(form, {total: total, loaded: loaded}, xhr);
+          var sum_loaded = sumLoaded(files);
+          onprogress.call(this, { loaded: sum_loaded, total: total});
+          files.loaded == files.length && s.completeall.call(form, {total: total, loaded: sum_loaded}, xhr);
         };
         
         var onprogress = xhr.upload.onprogress = function( progress ) {
-          var params = [{
-            total: total,		
-            loaded: loaded + progress.loaded
-          },xhr];
-          
-          s.progress.apply(form, params);
-          $(data.elem).trigger('progress', params);
+          console.log("#onprogress:",  progress.loaded);
+          if (!isNaN(progress.loaded)) {
+            data.loaded = progress.loaded;
+            console.log("#sumLoaded:",sumLoaded(files));
+          }
+            var params = [{
+              total: total,		
+              loaded:  sumLoaded(files)
+            },xhr];
+            
+            s.progress.apply(form, params);
+            $(data.elem).trigger('progress', params);          
         };
+        
         $.ajax(s);
       });
     }
@@ -169,9 +178,10 @@ function Uploader( r, form, s ) {
         var file = files[lookup_file[load.file_id]];
         file.loaded = load.total;
         file.complete = true;
-        files.loaded ++;       
-        s.progress.apply(form, [{ loaded: sumLoaded(files), total: total}, null]);
-        files.loaded == files.length && s.completeall.call(form, {files: files, total: total, loaded: loaded}, null);
+        files.loaded ++;
+        var sum_loaded = sumLoaded(files);
+        s.progress.apply(form, [{ loaded: sum_loaded, total: total}, null]);
+        files.loaded == files.length && s.completeall.call(form, {files: files, total: total, loaded: sum_loaded}, null);
       })
       .bind("Flash:UploadProcess", function (e, progress) {
           var file = files[lookup_file[progress.file_id]];
