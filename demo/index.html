@@ -15,7 +15,9 @@
 	
 
 <style>
-
+  ul {  padding:0; margin:0;list-style-type: none; }
+  ul.files span { margin: 10px; }
+  .hide { display: none; }
 </style>
 </head> 
 
@@ -32,11 +34,14 @@
 </form>
 
 <form id="test3" action="/fileupload/server/test3.php">
-	Flash upload<br />
-	<input type="file" name="third" id="third" class="flash" /><br />
+  <fieldset style="border: 1px solid #000">
+	  <legend>Flash Upload:</legend>
+	  <input type="file" name="third" id="third" class="flash" /><br />
+    <ul class="files"></ul>
+    <input class="hide" type="submit" value="Upload" />
+  </fieldset>
 </form>
 
-<div id="file_list"></div>
 <div id="progressbar"></div>
 
 
@@ -54,7 +59,6 @@ $('#test1').fileUpload({
   },
   success: function(r){
     var href = '/fileupload/server/files/' + r.filename;
-    $('<a href="'+href+'" target="_blank">'+r.filename+'</a><br />').appendTo('#file_list');
   },
   completeall: function(r) {
     console.log("completeall",r);
@@ -69,7 +73,6 @@ $('#test2').fileUpload({
   },
   success: function(r){
     var href = '/fileupload/server/files/' + r.filename;
-    $('<a href="'+href+'" target="_blank">'+r.filename+'</a><br />').appendTo('#file_list');
   },
   completeall: function(r) {
     console.log("completeall",r);
@@ -78,12 +81,27 @@ $('#test2').fileUpload({
 
 $('#test3').fileUpload({
   runtime: 'flash',
+  auto_upload: false,
+  filesadded: function(files) {
+    if (!files.length>0) return;
+    $('[type="submit"]', this).show();
+    var uploader = this.uploader;
+    var el = $('.files', this);
+    el.undelegate('a', 'click');
+    $("li", el).detach('li');
+    $.each(files, function(i,file) {
+        $('<li><span><a href="#remove_file:'+file.id+'">[X]</a></span><span class="file">'+file.name+'</span><span class="file_size">'+Math.round(file.size/1024)+' kb</span></li>').appendTo(el);
+    });
+    el.delegate('a', 'click', function(e) {
+      uploader.removeFile($(this).attr('href').split(':')[1]);
+      $(this).closest('li').remove();
+    });
+  },
   progress: function(pr, xhr) {
     $bar.progressbar('value', 100*pr.loaded/pr.total);
   },
   success: function(r){
     var href = '/fileupload/server/files/' + r.filename;
-    $('<a href="'+href+'" target="_blank">'+r.filename+'</a><br />').appendTo('#file_list');
   },
   completeall: function(r) {
     console.log("completeall",r);

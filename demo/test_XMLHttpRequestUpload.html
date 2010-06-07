@@ -30,14 +30,13 @@ $(document).ready(function() {
       }
   
       function readystatechangeHandler(evt) {
-        //console.log("PASS: readystatechange event fired on XMLHttpRequestUpload: ", xhr.readyState, evt);
+        //debug.log("PASS:  event fired on XMLHttpRequestUpload: <b>" +evt.type +"</b> readyState:"+ xhr.readyState);
         if (xhr.readyState == xhr.DONE) { }
       }
   
       xhr = new XMLHttpRequest;
       
-      //xhr.upload.onprogress = progressHandler;
-      xhr.upload.addEventListener("progress", progressHandler, false);
+      xhr.upload.onprogress = progressHandler;
       xhr.upload.onloadstart = loadstartHandler;
       xhr.upload.onload = loadHandler;
       xhr.onreadystatechange = readystatechangeHandler;
@@ -89,15 +88,15 @@ $(document).ready(function() {
 
 </script>
 <body>
-<h3>This test that progress events are fired for XMLHttpRequestUpload objects.</h3>
-  <form id="upload_form">
-	<input type="file" name="upload" multiple="multiple"/><br />
-  <input type="radio" name="as_type" value="as_binary"> As Binary<br>
-  <input type="radio" name="as_type" value="as_file" checked="checked">  As File<br>
-
-  <input type="submit" value="Upload" />
-  </form>
-  <a href="#" class="clear_console">Clear Debug Console</a>
-  <div id="debug"></div>
+  <h3>This test that progress events are fired for XMLHttpRequestUpload objects.</h3>
+    <form id="upload_form">
+    <input type="file" name="upload" multiple="multiple"/><br />
+    <input type="radio" name="as_type" value="as_binary"> As Binary<br>
+    <input type="radio" name="as_type" value="as_file" checked="checked">  As File<br>
+  
+    <input type="submit" value="Upload" />
+    </form>
+    <a href="#" class="clear_console">Clear Debug Console</a>
+    <div id="debug"></div>
  </body>
 </html>

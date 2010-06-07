@@ -25,7 +25,7 @@
           try { return new ActiveXObject('ShockwaveFlash.ShockwaveFlash').GetVariable('$version'); } catch (e) { return '0.0'; }
         }
       })();
-      return parseFloat(version.match(/\d+\.\d+/)[0]) >= 10.0;
+      return parseFloat(version.match(/\d+\.\d+/)[0]) >= 9.0;
     },
     iframe: function() { return true; }
   };
@@ -33,12 +33,11 @@
   $.fn.fileUpload = function( options ) {
       var s = $.extend(true, {}, $.ajaxSettings, arguments.callee.defaults, options);
       var form = this;
-      var uploader = null;
       $.each(s.runtime.split(','), function(i, r) {
         if (typeof $.support.runtime[r] == 'undefined' ) 
           throw ( "no runtime with name :" +r );    
         if ($.support.runtime[r]()) {
-          uploader = new Uploader(r,form,s);
+          form.uploader = new Uploader(r,form,s);
           return false; 
         }
       });
@@ -55,6 +54,7 @@ $.fn.fileUpload.defaults = {
     type: 'post',
     url: null,
     auto_upload: true,
+    filesadded: $.noop,
     progress: $.noop,
     completeall: $.noop
 };
@@ -158,7 +158,7 @@ function Uploader( r, form, s ) {
       .height(browse_button.outerHeight(true));
 
       
-      $(form).bind('Flash:Init', function() {  
+      $(form).bind('Flash:Init', function() {
       })
       .bind('Flash:CancelSelect', function() {
       })
@@ -171,6 +171,7 @@ function Uploader( r, form, s ) {
             lookup_file[file.id] = i;
             total+= file.size;
           }
+          s.filesadded.apply(form, [files]);
           $(this).trigger("FilesAdded", files);
          (s.auto_upload) &&  $(this).trigger("change");
       })
@@ -192,6 +193,16 @@ function Uploader( r, form, s ) {
           }, null];
           s.progress.apply(form, params);
       });
+      (!s.auto_upload) && $(form).bind('submit', function(e) {
+        e.preventDefault();
+        self.upload();
+      });
+    },
+    removeFile: function(file_id) {
+      var file = files[lookup_file[file_id]];
+      total -= file.size;
+      var flashObject = document.getElementById(_id+'_flash');
+      flashObject.removeFile(file_id);          
     },
     upload: function() {
       var flashObject = document.getElementById(_id+'_flash')

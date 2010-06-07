@@ -70,6 +70,7 @@ package com.jimdo.upload {
 
 			ExternalInterface.addCallback('uploadFile', this.uploadFile);
       ExternalInterface.addCallback('clearQueue', this.clearFiles);
+      ExternalInterface.addCallback('removeFile', this.removeFile);
       this.fireEvent("Init");
     }
     
@@ -85,7 +86,12 @@ package com.jimdo.upload {
     private function clearFiles():void {
 			this.files = new Dictionary();
 		}
-    
+
+    private function removeFile(id:String):void {
+			if (this.files[id] != null)
+				delete this.files[id];
+		}
+
 		private function cancelEvent(e:Event):void {
 			this.fireEvent("CancelSelect");
 		}
@@ -222,7 +228,6 @@ class File extends EventDispatcher {
        
     /* Simple Upload */
     /* No Custom Header - doesn't support cookies. */
-    //var url:String = "http://localhost/fileupload/server/test3.php";
     //ExternalInterface.call("console.log", url);
     
     var request:URLRequest = new URLRequest(url);
