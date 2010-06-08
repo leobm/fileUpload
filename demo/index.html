@@ -86,7 +86,7 @@ $('#test3').fileUpload({
   filesadd: function(files) {
     if (!files.length>0) return;
     $('[type="submit"]', this).show();
-    var uploader = this.uploader;
+    var uploader = $.data(this, 'uploader');
     var el = $('.files', this);
     el.undelegate('a', 'click');
     $("li", el).detach('li');

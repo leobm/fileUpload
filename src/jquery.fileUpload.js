@@ -37,7 +37,7 @@
         if (typeof $.support.ajaxUpload[r] == 'undefined' ) 
           throw ( "no runtime with name :" +r );    
         if ($.support.ajaxUpload[r]()) {
-          form.uploader = new Uploader(r,form,s);
+          $.data(form, 'uploader', new Uploader(r,form,s));
           return false; 
         }
       });
