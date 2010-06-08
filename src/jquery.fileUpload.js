@@ -12,7 +12,7 @@
 
 (function($, window){
 
-  $.support.runtime = {
+  $.support.ajaxUpload = {
     html5: function() {
       /* detect if ajax upload is supported */
       var xhr = $.ajaxSettings.xhr();
@@ -33,10 +33,10 @@
   $.fn.fileUpload = function( options ) {
       var s = $.extend(true, {}, $.ajaxSettings, arguments.callee.defaults, options);
       var form = this;
-      $.each(s.runtime.split(','), function(i, r) {
-        if (typeof $.support.runtime[r] == 'undefined' ) 
+      $.each(s.runtime.split(/\s*?,\s*?/), function(i, r) {
+        if (typeof $.support.ajaxUpload[r] == 'undefined' ) 
           throw ( "no runtime with name :" +r );    
-        if ($.support.runtime[r]()) {
+        if ($.support.ajaxUpload[r]()) {
           form.uploader = new Uploader(r,form,s);
           return false; 
         }
@@ -46,13 +46,13 @@
 
 $.fn.fileUpload.defaults = {
     runtime: 'html5,flash,iframe',
-    file_filters: null,    
+    fileFilters: null,    
     dataType: 'json',
     type: 'post',
     url: null,
     params: null,
-    auto_upload: true,
-    filesadded: $.noop,
+    autoStart: true,
+    filesadd: $.noop,
     progress: $.noop,
     completeall: $.noop
 };
@@ -63,13 +63,11 @@ function Uploader( r, form, s ) {
   var self = this;
   var _id = guid();
   var files = [],
-  total = 0, loaded = 0, lookup_file = {};
+  total = 0, loaded = 0, lookupFile = {};
   files.loaded = 0;
   
-  this.id = function() { return _id; }
-  this.runtime = function() { return r; }
-  $(form).bind('change', function() {
-    (s.auto_upload) &&  self.upload();
+  s.autoStart && $(form).bind('change', function() {
+      self.upload();
   });
   !s.url && (s.url = $(form).attr('action'));
   
@@ -114,11 +112,9 @@ function Uploader( r, form, s ) {
         };
         
         var onprogress = xhr.upload.onprogress = function( progress ) {
-          console.log("#onprogress:",  progress.loaded);
-          if (!isNaN(progress.loaded)) {
-            data.loaded = progress.loaded;
-            console.log("#sumLoaded:",sumLoaded(files));
-          }
+            if (!isNaN(progress.loaded)) {
+              data.loaded = progress.loaded;
+            }
             var params = [{
               total: total,		
               loaded:  sumLoaded(files)
@@ -137,14 +133,14 @@ function Uploader( r, form, s ) {
     init: function() {
       $.fn.fileUpload.flash = {
         trigger : function(id, name, obj) {
-          setTimeout(function() { form.trigger('Flash:' + name, [obj]); }, 0);
+          setTimeout(function() { form.trigger('flash' + name, [obj]); }, 0);
         }
       };
       var input = $('input[type="file"]', form).hide()[0];
       var flashvars = [];
       $.each({
         id: _id+'_flash',
-        filters: s.file_filters || '',
+        filters: s.fileFilters || '',
         multiple: parseInt(!!($(input).attr('multiple')))
         }, function(k,v) {
           flashvars.push(encodeURIComponent(k)+'='+encodeURIComponent(v));
@@ -164,25 +160,25 @@ function Uploader( r, form, s ) {
       .width(browse_button.outerWidth(true))
       .height(browse_button.outerHeight(true));
 
-      $(form).bind('Flash:Init', function() {
+      $(form).bind('flashinit', function() {
       })
-      .bind('Flash:CancelSelect', function() {
+      .bind('flashcancelselect', function() {
       })
-      .bind('Flash:StageEvent:rollOver', function() {
+      .bind('flashstagerollover', function() {
       })
-      .bind("Flash:SelectFiles", function(e, selected_files) {
-          for (i = 0; i < selected_files.length; i++) {
-            var file = selected_files[i];
+      .bind("flashselectfiles", function(e, selectedFiles) {
+          for (i = 0; i < selectedFiles.length; i++) {
+            var file = selectedFiles[i];
             files.push(file);
-            lookup_file[file.id] = i;
+            lookupFile[file.id] = i;
             total+= file.size;
           }
-          s.filesadded.apply(form, [files]);
-          $(this).trigger("FilesAdded", files);
-         (s.auto_upload) &&  $(this).trigger("change");
+          s.filesadd.apply(form, [files]);
+          $(this).trigger("filesadd", files);
+          $(this).trigger("change");
       })
-      .bind("Flash:UploadComplete", function(e, load) {
-        var file = files[lookup_file[load.file_id]];
+      .bind("flashuploadcomplete", function(e, load) {
+        var file = files[lookupFile[load.fileId]];
         file.loaded = load.total;
         file.complete = true;
         files.loaded ++;
@@ -190,8 +186,8 @@ function Uploader( r, form, s ) {
         s.progress.apply(form, [{ loaded: sum_loaded, total: total}, null]);
         files.loaded == files.length && s.completeall.call(form, {files: files, total: total, loaded: sum_loaded}, null);
       })
-      .bind("Flash:UploadProcess", function (e, progress) {
-          var file = files[lookup_file[progress.file_id]];
+      .bind("flashuploadprocess", function (e, progress) {
+          var file = files[lookupFile[progress.fileId]];
           file.loaded = progress.loaded;
           var params = [{
             total: total,		
@@ -204,11 +200,11 @@ function Uploader( r, form, s ) {
         self.upload();
       });
     },
-    removeFile: function(file_id) {
-      var file = files[lookup_file[file_id]];
+    removeFile: function(fileId) {
+      var file = files[lookupFile[fileId]];
       total -= file.size;
       var flashObject = document.getElementById(_id+'_flash');
-      flashObject.removeFile(file_id);          
+      flashObject.removeFile(fileId);          
     },
     upload: function() {
       var flashObject = document.getElementById(_id+'_flash')

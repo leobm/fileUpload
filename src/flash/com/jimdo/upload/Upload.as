@@ -43,7 +43,6 @@ package com.jimdo.upload {
       this.id = this.stage.loaderInfo.parameters["id"];
       this.fileFilters = this.stage.loaderInfo.parameters["filters"];
       this.multipleFiles = Boolean(this.stage.loaderInfo.parameters["multiple"]);
-      ExternalInterface.call("console.log", this.multipleFiles);
       
       // Setup file reference list
 			this.fileRefList = new FileReferenceList();
@@ -79,12 +78,11 @@ package com.jimdo.upload {
 			ExternalInterface.addCallback('uploadFile', this.uploadFile);
       ExternalInterface.addCallback('clearQueue', this.clearFiles);
       ExternalInterface.addCallback('removeFile', this.removeFile);
-      this.fireEvent("Init");
+      this.fireEvent("init");
     }
     
     private function uploadFile(id:String, url:String, settings:Object):void {
       	var file:File = this.files[id] as File;
-
       if (file) {
 				this.currentFile = file;
 				file.upload(url, settings);
@@ -101,7 +99,7 @@ package com.jimdo.upload {
 		}
 
 		private function cancelEvent(e:Event):void {
-			this.fireEvent("CancelSelect");
+			this.fireEvent("cancelselect");
 		}
     
     private function selectEvent(e:Event):void {
@@ -110,28 +108,28 @@ package com.jimdo.upload {
       function processFile(file:File):void {
         
         file.addEventListener(Event.OPEN, function(e:Event):void {
-          fireEvent("UploadStart", {
-            file_id : file.id
+          fireEvent("uploadstart", {
+            fileId : file.id
           });
         });
         file.addEventListener(ProgressEvent.PROGRESS, function(e:ProgressEvent):void {          
 					var file:File = e.target as File;
-					fireEvent("UploadProcess", {
-						file_id : file.id,
+					fireEvent("uploadprocess", {
+						fileId : file.id,
 						loaded : e.bytesLoaded,
 						size : e.bytesTotal
 					});
 				});
         file.addEventListener(Event.COMPLETE, function(e:Event):void {
-          fireEvent("UploadComplete", {
-            file_id : file.id, 
+          fireEvent("uploadcomplete", {
+            fileId : file.id, 
             total: e.target.size
           });
         });
         file.addEventListener(DataEvent.UPLOAD_COMPLETE_DATA, function(e:DataEvent):void {
 					var file:File = e.target as File;
-					fireEvent("UploadComplete", {
-						file_id : file.id,
+					fireEvent("uploadcomplete", {
+						fileId : file.id,
 						text : e.text
 					});
 				});
@@ -149,15 +147,15 @@ package com.jimdo.upload {
         processFile(new File("file_" + (this.idCounter++), this.fileRef));
       }
       
-      this.fireEvent("SelectFiles", selectedFiles);
+      this.fireEvent("selectfiles", selectedFiles);
     }
     
     private function stageEvent(e:Event):void {
-			this.fireEvent("StageEvent:" + e.type);
+			this.fireEvent("stage" + e.type);
 		}
     
     private function stageClickEvent(e:Event):void {
-      this.fireEvent("StageClick");
+      this.fireEvent("stageclick");
       try {
         var refBrowse:Object = (this.multipleFiles) ? this.fileRefList : this.fileRef;
         if (this.fileFilters) {
@@ -167,7 +165,7 @@ package com.jimdo.upload {
           refBrowse.browse();
         }
       } catch(ex:Error) {
-        this.fireEvent("SelectError", ex.message);
+        this.fireEvent("selecterror", ex.message);
       }
     }
     

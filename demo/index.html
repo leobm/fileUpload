@@ -81,9 +81,9 @@ $('#test2').fileUpload({
 
 $('#test3').fileUpload({
   runtime: 'flash,html5',
-  file_filters: 'png,jpg,pdf',
-  auto_upload: false,
-  filesadded: function(files) {
+  fileFilters: 'png,jpg,pdf',
+  autoStart: false,
+  filesadd: function(files) {
     if (!files.length>0) return;
     $('[type="submit"]', this).show();
     var uploader = this.uploader;
