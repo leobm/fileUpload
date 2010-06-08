@@ -10,6 +10,7 @@ package com.jimdo.upload {
 	import flash.display.StageScaleMode;
 	import flash.net.FileReferenceList;
 	import flash.net.FileReference;
+  import flash.net.FileFilter;
   	import flash.events.Event;
   import flash.events.MouseEvent;
 	import flash.events.FocusEvent;
@@ -17,7 +18,7 @@ package com.jimdo.upload {
   import flash.events.DataEvent;
   import flash.external.ExternalInterface;
   import flash.utils.Dictionary;
-  
+
   
   public class Upload extends Sprite {
     
@@ -26,6 +27,9 @@ package com.jimdo.upload {
 		private var files:Dictionary;
     private var fileRef:FileReference;
     private var id:String;
+    private var fileFilters:String;
+    private var multipleFiles:Boolean;
+    
     private var idCounter:int = 0;
     private var currentFile:File;
     
@@ -37,6 +41,10 @@ package com.jimdo.upload {
     private function init(e:Event = null):void {
       removeEventListener(Event.ADDED_TO_STAGE, init);
       this.id = this.stage.loaderInfo.parameters["id"];
+      this.fileFilters = this.stage.loaderInfo.parameters["filters"];
+      this.multipleFiles = Boolean(this.stage.loaderInfo.parameters["multiple"]);
+      ExternalInterface.call("console.log", this.multipleFiles);
+      
       // Setup file reference list
 			this.fileRefList = new FileReferenceList();
 			this.fileRefList.addEventListener(Event.CANCEL, cancelEvent);
@@ -132,10 +140,13 @@ package com.jimdo.upload {
         selectedFiles.push({id : file.id, name : file.fileName, size : file.size, loaded : 0});
       }
       
-      
-      for (var i:Number = 0; i < this.fileRefList.fileList.length; i++) {
-        var file:File = new File("file_" + (this.idCounter++), this.fileRefList.fileList[i]);       
-        processFile(file);
+      if (this.multipleFiles) {
+        for (var i:Number = 0; i < this.fileRefList.fileList.length; i++) {
+          var file:File = new File("file_" + (this.idCounter++), this.fileRefList.fileList[i]);       
+          processFile(file);
+        }
+      } else { 
+        processFile(new File("file_" + (this.idCounter++), this.fileRef));
       }
       
       this.fireEvent("SelectFiles", selectedFiles);
@@ -148,7 +159,13 @@ package com.jimdo.upload {
     private function stageClickEvent(e:Event):void {
       this.fireEvent("StageClick");
       try {
-        this.fileRefList.browse();
+        var refBrowse:Object = (this.multipleFiles) ? this.fileRefList : this.fileRef;
+        if (this.fileFilters) {
+          var fileFilter:FileFilter = new FileFilter("Images",'*.' + this.fileFilters.replace(/,/g, ";*."));
+          refBrowse.browse([fileFilter])
+        } else {
+          refBrowse.browse();
+        }
       } catch(ex:Error) {
         this.fireEvent("SelectError", ex.message);
       }
@@ -163,7 +180,7 @@ package com.jimdo.upload {
 		private function fireEvent(type:String, obj:Object = null):void {
 			ExternalInterface.call("jQuery.fn.fileUpload.flash.trigger", this.id, type, obj);
 		}
-        
+
   }
   
 }
@@ -228,7 +245,6 @@ class File extends EventDispatcher {
        
     /* Simple Upload */
     /* No Custom Header - doesn't support cookies. */
-    //ExternalInterface.call("console.log", url);
     
     var request:URLRequest = new URLRequest(url);
     request.method = URLRequestMethod.POST;

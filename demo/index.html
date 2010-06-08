@@ -36,7 +36,7 @@
 <form id="test3" action="/fileupload/server/test3.php">
   <fieldset style="border: 1px solid #000">
 	  <legend>Flash Upload:</legend>
-	  <input type="file" name="third" id="third" class="flash" /><br />
+	  <input type="file" name="third" id="third" multiple="multiple" /><br />
     <ul class="files"></ul>
     <input class="hide" type="submit" value="Upload" />
   </fieldset>
@@ -80,7 +80,8 @@ $('#test2').fileUpload({
 });
 
 $('#test3').fileUpload({
-  runtime: 'flash',
+  runtime: 'flash,html5',
+  file_filters: 'png,jpg,pdf',
   auto_upload: false,
   filesadded: function(files) {
     if (!files.length>0) return;

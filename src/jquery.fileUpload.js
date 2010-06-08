@@ -46,13 +46,11 @@
 
 $.fn.fileUpload.defaults = {
     runtime: 'html5,flash,iframe',
-    runtime_defaults: {
-      flash: {
-      }
-    },
+    file_filters: null,    
     dataType: 'json',
     type: 'post',
     url: null,
+    params: null,
     auto_upload: true,
     filesadded: $.noop,
     progress: $.noop,
@@ -90,7 +88,7 @@ function Uploader( r, form, s ) {
       $.each(files, function send( i, data ){
           
         var xhr = _xhr(),
-          _send = xhr.sendAsBinary //xhr.send,
+          _send = xhr.send,
           file = data.file;
           
         s.xhr = function() {
@@ -143,11 +141,20 @@ function Uploader( r, form, s ) {
         }
       };
       var input = $('input[type="file"]', form).hide()[0];
+      var flashvars = [];
+      $.each({
+        id: _id+'_flash',
+        filters: s.file_filters || '',
+        multiple: parseInt(!!($(input).attr('multiple')))
+        }, function(k,v) {
+          flashvars.push(encodeURIComponent(k)+'='+encodeURIComponent(v));
+      });
+
       $(input).wrap('<div class="flash_container" style="position:relative; overflow:hidden; z-index:99999;" />')
       .before('<div class="flash_overlay" style="position:absolute; top:0;  width:100%; height:100%;">'+
       '<object id="'+_id+'_flash" width="100%" height="100%" style="outline:0" type="application/x-shockwave-flash" data="Upload.swf">' +
       '<param name="movie" value="Upload.swf" />' +
-      '<param name="flashvars" value="id='+_id+'_flash" />' +
+      '<param name="flashvars" value="'+flashvars.join('&')+'" />' +
       '<param name="wmode" value="transparent" />' +
       '<param name="allowscriptaccess" value="always" /></object>'+
       '</div><input type="button" value="Add Files" class="browse" style="z-index:0" />');
@@ -157,7 +164,6 @@ function Uploader( r, form, s ) {
       .width(browse_button.outerWidth(true))
       .height(browse_button.outerHeight(true));
 
-      
       $(form).bind('Flash:Init', function() {
       })
       .bind('Flash:CancelSelect', function() {
@@ -193,7 +199,7 @@ function Uploader( r, form, s ) {
           }, null];
           s.progress.apply(form, params);
       });
-      (!s.auto_upload) && $(form).bind('submit', function(e) {
+      $(form).bind('submit', function(e) {
         e.preventDefault();
         self.upload();
       });
