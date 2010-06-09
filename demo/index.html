@@ -12,7 +12,7 @@
 	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.0/jquery-ui.js"></script>
 
 	<script type="text/javascript" src="../src/jquery.fileUpload.js"></script>
-	
+	<script type="text/javascript" src="../src/lib/flash/src/jquery.flash.js"></script>
 
 <style>
   ul {  padding:0; margin:0;list-style-type: none; }
@@ -30,15 +30,17 @@
 
 <form id="test2" action="../server/test.php">
 	Multiple files upload<br />
-	<input type="file" name="second" multiple="multiple"/><br />
+	<input type="file" name="second" multiple="multiple" /><br />
 </form>
 
 <form id="test3" action="/fileupload/server/test3.php">
   <fieldset style="border: 1px solid #000">
 	  <legend>Flash Upload:</legend>
-	  <input type="file" name="third" id="third" multiple="multiple" /><br />
+	  <input type="file"  multiple="multiple" /><br />
     <ul class="files"></ul>
     <input class="hide" type="submit" value="Upload" />
+    <input type="hidden" name="test_name" value="test_value" />
+    <input type="hidden" name="test_name1" value="test_value1" />
   </fieldset>
 </form>
 
@@ -68,8 +70,7 @@ $('#test1').fileUpload({
 $('#test2').fileUpload({
   runtime: 'html5',
   progress: function(pr, xhr) {
-    console.log("progress:", pr);
-    $bar.progressbar('value', 100*pr.loaded/pr.total);
+    $bar.progressbar('value', Math.round(100*pr.loaded/pr.total));
   },
   success: function(r){
     var href = '/fileupload/server/files/' + r.filename;
@@ -80,21 +81,24 @@ $('#test2').fileUpload({
 });
 
 $('#test3').fileUpload({
-  runtime: 'flash,html5',
+  runtime: 'flash html5',
   fileFilters: 'png,jpg,pdf',
   autoStart: false,
   filesadd: function(files) {
     if (!files.length>0) return;
-    $('[type="submit"]', this).show();
-    var uploader = $.data(this, 'uploader');
-    var el = $('.files', this);
-    el.undelegate('a', 'click');
-    $("li", el).detach('li');
+    var form = this;
+    $('[type="submit"]', form).show();
+    var ul = $('.files', form);
+    ul.undelegate('a', 'click');
+    $("li", ul).detach('li');
     $.each(files, function(i,file) {
-        $('<li><span><a href="#remove_file:'+file.id+'">[X]</a></span><span class="file">'+file.name+'</span><span class="file_size">'+Math.round(file.size/1024)+' kb</span></li>').appendTo(el);
+      $('<li />', {
+          html: $('<span><a href="#remove_file:'+file.id+'">[X]</a></span><span class="file">'+file.name+'</span><span class="file_size">'+Math.round(file.size/1024)+' kb</span>')
+      }).appendTo(ul);
     });
-    el.delegate('a', 'click', function(e) {
-      uploader.removeFile($(this).attr('href').split(':')[1]);
+    ul.delegate('a', 'click', function(e) {
+      var fileId = $(this).attr('href').split(':')[1];
+      $(form).fileUpload('removeFile', fileId);
       $(this).closest('li').remove();
     });
   },

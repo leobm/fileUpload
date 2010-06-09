@@ -42,7 +42,7 @@ package com.jimdo.upload {
       removeEventListener(Event.ADDED_TO_STAGE, init);
       this.id = this.stage.loaderInfo.parameters["id"];
       this.fileFilters = this.stage.loaderInfo.parameters["filters"];
-      this.multipleFiles = Boolean(this.stage.loaderInfo.parameters["multiple"]);
+      this.multipleFiles = !!('true' == this.stage.loaderInfo.parameters["multiple"]);
       
       // Setup file reference list
 			this.fileRefList = new FileReferenceList();
@@ -247,6 +247,9 @@ class File extends EventDispatcher {
     var request:URLRequest = new URLRequest(url);
     request.method = URLRequestMethod.POST;
     var postvars:URLVariables = new URLVariables();
+    
+    ExternalInterface.call("console.log", settings);
+
     request.data = postvars;
     this._fileRef.upload(request, "Filedata");
     
