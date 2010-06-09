@@ -246,11 +246,13 @@ class File extends EventDispatcher {
     
     var request:URLRequest = new URLRequest(url);
     request.method = URLRequestMethod.POST;
-    var postvars:URLVariables = new URLVariables();
-    
-    ExternalInterface.call("console.log", settings);
-
-    request.data = postvars;
+    var variables:URLVariables = new URLVariables();
+    if (settings && typeof settings.params == 'object') {
+      for (var name:String in settings.params) {
+        variables[name] = settings.params[name];
+      }
+    }
+    request.data = variables;
     this._fileRef.upload(request, "Filedata");
     
   }
