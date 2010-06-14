@@ -38,12 +38,16 @@
           if (runtime=='html5' && hasHTML5Upload()) {
             uploader = new Html5Uploader($form,s);
           } else if (runtime=='flash')  {
-            uploader = new FlashUploader($form,s); 
+            try {
+              uploader = new FlashUploader($form,s);
+            } catch(ex) {
+              // flash error
+            }
           } else {
             uploader = new IframeUploader($form,s); 
           }
-          if (typeof uploader == 'object') 
-            return false;
+          return !!uploader;
+            
         });
         
         return uploader;
@@ -140,9 +144,6 @@ function FlashUploader($form, s ) {
           swf: s.swf,
           version: '9.0.0',
           attr: { id: flashId, width:'100%', height:'100%' },
-          error: function(e) { 
-            
-          },// XXX
           params: {
             flashvars: {
               id: flashId,
@@ -216,9 +217,12 @@ FlashUploader.prototype = {
             file.loaded = load.total;
             file.complete = true;
             files.loaded ++;
-            loaded = sumLoaded(files);
-            s.progress.apply($form, [{ loaded: loaded, total: self._total}, xhr ]);
-            files.loaded == files.length && s.completeall.call($form, {files: files, total: self._total, loaded: loaded}, xhr);
+            var loaded = sumLoaded(files);
+            triggerEvent(self, 'progress', [{ loaded: loaded, total: self._total}, xhr ]);
+            files.loaded == files.length &&  triggerEvent(self, 'completeall', [
+              {files: files, total: self._total, loaded: loaded}, xhr 
+            ]);
+            
             $.extend(xhr, {
               status: 200,
               readyState: 4,
@@ -234,11 +238,10 @@ FlashUploader.prototype = {
           upload: {
             progress: function(progress) {
               file.loaded = progress.loaded;
-              var params = [{
+              triggerEvent(self, 'progress', [{
                 total: self._total,		
                 loaded: sumLoaded(files)
-              }, null];
-              s.progress.apply($form, params);
+              }, xhr]);
             }
           }
       });
@@ -267,7 +270,7 @@ Html5Uploader.prototype = {
     var _xhr = s.xhr;
     $('[type="file"]', this._$form).each(function( i, elem ) {     
       this.files.length && $.each(this.files, function(i){
-        files.push({ file: this, elem: elem, loaded: 0});
+        files.push({ fileId: 'file_'+i, file: this, elem: elem, loaded: 0});
         total += this.fileSize;
       });
     });
@@ -276,6 +279,7 @@ Html5Uploader.prototype = {
       var xhr = _xhr(),
         _send = xhr.send,
         file = data.file;
+        
       s.xhr = function() {
         return xhr;
       };
@@ -292,20 +296,23 @@ Html5Uploader.prototype = {
         data.loaded = file.fileSize;
         data.complete = true;
         files.loaded ++;
-        loaded = sumLoaded(files);
-        onprogress.call(this, { loaded: loaded, total: total});
-        // XXX trigger func für events + callbacks einsetzen
-        files.loaded == files.length && s.completeall.call($form, {total: total, loaded: loaded }, xhr);
+        var loaded = sumLoaded(files);
+        
+        triggerEvent(self, 'progress', [{
+          total: total,		
+          loaded:  loaded
+        }, xhr]);
+        
+        files.loaded == files.length && triggerEvent(self, 'completeall', [
+           {total: total, loaded: loaded }, xhr
+        ]);
       };
       var onprogress = xhr.upload.onprogress = function( progress ) {
-         data.loaded = progress.loaded;
-         loaded = sumLoaded(files);
-          var params = [{
-            total: total,		
-            loaded:  loaded
-          }, xhr];
-          s.progress.apply($form, params);
-          $(data.elem).trigger('progress', params);          
+        data.loaded = progress.loaded;
+        triggerEvent(self, 'progress', [{
+          total: total,		
+          loaded:  sumLoaded(files)
+        }, xhr]);
       };
       
       $.ajax(s);
@@ -392,7 +399,7 @@ IframeUploader.prototype =  {
         } else if ( s.dataType == 'xml' && !xhr.responseXML && xhr.responseText != null ) {
             xhr.responseXML = toXml(xhr.responseText);
         };
-        s.completeall.call($form, null, xhr);
+        triggerEvent(self, 'completeall', [ null, xhr ]);
         xhr.onreadystatechange();
         close();
     }   
@@ -408,6 +415,13 @@ IframeUploader.prototype =  {
     $.ajax(s);
   }
 };
+
+function triggerEvent(instance, type, params) {
+    var s = instance._s,
+       $form = instance._$form;
+    s[type].apply($form, params);
+    $form.trigger(type, params);        
+}
 
 function sumLoaded(files) {
     var loaded = 0;
