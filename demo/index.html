@@ -23,9 +23,9 @@
 
 <body>
 
-<form id="test1" action="../server/test.php">
+<form id="test1" action="../server/test3.php">
 	Normal upload<br />
-	<input type="file" name="first" /><br />
+	<input type="file" name="Filedata" /><br />
 </form>
 
 <form id="test2" action="../server/test.php">
@@ -56,14 +56,13 @@ $bar.progressbar('value', 0);
 $('#test1').fileUpload({
   runtime: 'iframe',
   progress: function(pr, xhr) {
-
     $bar.progressbar('value', 100*pr.loaded/pr.total);
   },
   success: function(r){
     var href = '/fileupload/server/files/' + r.filename;
   },
   completeall: function(r) {
-    console.log("completeall",r);
+    r && $bar.progressbar('value', 100*r.loaded/r.total);
   }
 });
 

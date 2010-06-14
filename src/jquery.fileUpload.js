@@ -10,12 +10,12 @@
  * @license Mit Style License
  */
 
-(function($, window, plugin){
+(function(global, document, $, plugin){
 
   var hasHTML5Upload = function() {
     /* detect if ajax upload is supported */
     var xhr = $.ajaxSettings.xhr();
-    return !!(xhr.sendAsBinary || xhr.upload);    
+    return !!xhr.upload;    
   };
 
   $.fn[plugin] = function( method, options ) {
@@ -27,6 +27,7 @@
     
     var ret = this;
     this.each(function(){
+        
       var $form = $(this); 
       
       var instance = $.data(this, plugin ) || $.data(this, plugin, (function() {
@@ -36,11 +37,13 @@
         $.each(s.runtime.split(' '), function(i, runtime) {
           if (runtime=='html5' && hasHTML5Upload()) {
             uploader = new Html5Uploader($form,s);
-            return false;
           } else if (runtime=='flash')  {
             uploader = new FlashUploader($form,s); 
-            return false;
+          } else {
+            uploader = new IframeUploader($form,s); 
           }
+          if (typeof uploader == 'object') 
+            return false;
         });
         
         return uploader;
@@ -59,7 +62,6 @@
     });
     return ret;
   };
-  
 
 $.fn[plugin].defaults = {
     runtime: 'html5 flash iframe',    
@@ -71,6 +73,17 @@ $.fn[plugin].defaults = {
     filesadd: $.noop,
     progress: $.noop,
     completeall: $.noop
+};
+
+var xhrMock = { 
+    responseText: null,
+    responseXML: null,
+    status: 0,
+    readyState: 0,
+    statusText: '',
+    getAllResponseHeaders: $.noop,
+    setRequestHeader: $.noop,
+    open: $.noop
 };
 
 var timestamp = (new Date).getTime();
@@ -90,23 +103,24 @@ function FlashUploader($form, s ) {
   this._total = 0;
   this._s = s;
   this._lookupFile = {};
+  this._xhrsHash = {};
   this._$originContent = $form.html();
   
   var flashId = ++timestamp + '-flash';
-  // XXX
-  $.fn[plugin].flash = {
-    trigger : function(id, name, obj) {
-      setTimeout(function() { $form.trigger('flash' + name, [obj]); }, 0);
-    }
-  };
   
   var $input = $('input[type="file"]', $form).hide().first();
   var params = {};
   $('input[type="hidden"]', $form).each(function() {
-    params[$(this).attr('name')] =  $(this).attr('value');
+    params[this.name] =  this.value;
   });
   this._params = $.extend(params , s.params || {});
-    
+  
+  this._flashCallbackName = plugin+'Callback'+(++timestamp);
+  global[this._flashCallbackName] = function(callbackData) {
+    setTimeout(function() { 
+      $flashContainer.trigger('flash' + callbackData.type, [callbackData.obj])},
+    0);
+  };
   $input
     .wrap($('<div />',{
       css: {
@@ -126,12 +140,15 @@ function FlashUploader($form, s ) {
           swf: s.swf,
           version: '9.0.0',
           attr: { id: flashId, width:'100%', height:'100%' },
-          error: function(e) { throw e; },// XXX
+          error: function(e) { 
+            
+          },// XXX
           params: {
             flashvars: {
               id: flashId,
               filters: s.fileFilters || '',
-              multiple: !!($input.attr('multiple'))
+              multiple: !!($input.attr('multiple')),
+              callbackName: self._flashCallbackName
             }
           }
         });
@@ -143,8 +160,9 @@ function FlashUploader($form, s ) {
       .width($input.prev().outerWidth(true))
       .height($input.prev().outerHeight(true));
   
-  $form
-  .bind('flashinit.' + plugin , function() {
+  var $flashContainer = $(self.flashObject).parent();
+  
+  $flashContainer.bind('flashinit.' + plugin , function() {
   })
   .bind('flashcancelselect.' + plugin , function() {
   })
@@ -163,34 +181,24 @@ function FlashUploader($form, s ) {
         .trigger("filesadd",files)
         .trigger("change");
   })
-  .bind('flashuploadcomplete.' + plugin, function(e, load) {
-    var files = self._files,
-        file = files[self._lookupFile[load.fileId]];
-    file.loaded = load.total;
-    file.complete = true;
-    files.loaded ++;
-    loaded = sumLoaded(files);
-    s.progress.apply($form, [{ loaded: loaded, total: self._total}, null]);
-    files.loaded == files.length && s.completeall.call($form, {files: files, total: self._total, loaded: loaded}, null);
+  .bind('flashuploadcompletedata.' + plugin, function(e, load) {
+      var xhr = self._xhrsHash[load.fileId];
+      xhr.onload(load);
   })
   .bind('flashuploadprocess.' + plugin, function (e, progress) {
-      var files = self._files,
-          file = self._files[self._lookupFile[progress.fileId]];
-      file.loaded = progress.loaded;
-      var params = [{
-        total: self._total,		
-        loaded: sumLoaded(files)
-      }, null];
-      s.progress.apply($form, params);
-  })
-  .bind('submit.' + plugin, function(e) {
-      e.preventDefault();
-      self.upload();
+      var xhr = self._xhrsHash[progress.fileId];
+      xhr.upload.progress(progress);
+  });
+
+  $form.bind('submit.' + plugin, function(e) {
+     self.upload(); 
+     return false;
   });
 };
 
 FlashUploader.prototype = {
   destroy: function() {
+    delete global[this._flashCallbackName];
     this._$form.removeData(plugin).html(this._$originContent);
   },
   removeFile: function(fileId) {
@@ -199,24 +207,65 @@ FlashUploader.prototype = {
     this.flashObject.removeFile(fileId);          
   },
   upload: function() {
-    var self = this;
-    $.each(this._files, function(i, file){
-      self.flashObject.uploadFile(file.id, self._s.url, { 
-        params: self._params
-      });          
+    var self = this,
+    s = this._s, $form = this._$form, files = this._files;
+    $.each(files, function(i, file){ 
+      // mock xhr object
+      var xhr = $.extend({}, xhrMock, {
+          onload: function(load) {
+            file.loaded = load.total;
+            file.complete = true;
+            files.loaded ++;
+            loaded = sumLoaded(files);
+            s.progress.apply($form, [{ loaded: loaded, total: self._total}, xhr ]);
+            files.loaded == files.length && s.completeall.call($form, {files: files, total: self._total, loaded: loaded}, xhr);
+            $.extend(xhr, {
+              status: 200,
+              readyState: 4,
+              responseText: load.text
+            });
+            xhr.onreadystatechange();
+          },            
+          send: function() {
+            self.flashObject.uploadFile(file.id, s.url, { 
+                params: self._params
+            });
+          },
+          upload: {
+            progress: function(progress) {
+              file.loaded = progress.loaded;
+              var params = [{
+                total: self._total,		
+                loaded: sumLoaded(files)
+              }, null];
+              s.progress.apply($form, params);
+            }
+          }
+      });
+      
+      self._xhrsHash[file.id] = xhr;
+      s.xhr = function() {
+        return xhr;
+      };
+      $.ajax(s);
     });
   }
 }
 
-function Html5Uploader( form, s ) {
-  var files = [],
-      total = 0, loaded = 0, lookupFile = {};
-  files.loaded = 0;
-
-  var _xhr = s.xhr;
-  // XXX
-  this.upload  = function() {
-    $('[type="file"]', form).each(function( i, elem ) {     
+function Html5Uploader( $form, s ) {
+  this._$form = $form;
+  this._files = [];
+  this._total = 0;
+  this._files.loaded = 0;
+  this._s = s;
+};
+Html5Uploader.prototype = {
+  upload: function() {
+    var self = this, s = this._s,
+        $form = this._$form, files = this._files, total = this._total;
+        
+    var _xhr = s.xhr;
+    $('[type="file"]', this._$form).each(function( i, elem ) {     
       this.files.length && $.each(this.files, function(i){
         files.push({ file: this, elem: elem, loaded: 0});
         total += this.fileSize;
@@ -230,7 +279,7 @@ function Html5Uploader( form, s ) {
       s.xhr = function() {
         return xhr;
       };
-  
+    
       xhr.send = function() {
         xhr.setRequestHeader("Content-Type", "multipart/form-data");
         xhr.setRequestHeader("Cache-Control", "no-cache");
@@ -238,7 +287,7 @@ function Html5Uploader( form, s ) {
         xhr.setRequestHeader('X-File-Size', file.fileSize);
         _send.call(this, file);
       };
-  
+    
       xhr.onload = function( load ) {
         data.loaded = file.fileSize;
         data.complete = true;
@@ -246,9 +295,8 @@ function Html5Uploader( form, s ) {
         loaded = sumLoaded(files);
         onprogress.call(this, { loaded: loaded, total: total});
         // XXX trigger func für events + callbacks einsetzen
-        files.loaded == files.length && s.completeall.call(form, {total: total, loaded: loaded }, xhr);
+        files.loaded == files.length && s.completeall.call($form, {total: total, loaded: loaded }, xhr);
       };
-      //console.log(xhr.upload, xhr.upload.onprogress);
       var onprogress = xhr.upload.onprogress = function( progress ) {
          data.loaded = progress.loaded;
          loaded = sumLoaded(files);
@@ -256,117 +304,117 @@ function Html5Uploader( form, s ) {
             total: total,		
             loaded:  loaded
           }, xhr];
-          s.progress.apply(form, params);
+          s.progress.apply($form, params);
           $(data.elem).trigger('progress', params);          
       };
       
       $.ajax(s);
     });
-  };
+  }
 };
 
-
-function IframeUploader(form, s ) {
-  var // cache original form attributes
-  _attr = {
-      target: form.target,
-      enctype: form.enctype,
-      method: form.method,
-      action: form.action
-  },
-  attr = {
-      target: 'file-upload-' + timestamp++, 
-      enctype: 'multipart/form-data', 
-      method: 'POST',
-      action: s.url
-  },
-  $f = $(form),
-  $iframe,
-  $ajaxData;
-
-  // mock request header types
-  var types = {
-      'content-type': s.dataType,
-      'Last-Modified': null,
-      Etag: null
-  };
-
-  // mock xhr object
-  var xhr = { 
-      responseText: null,
-      responseXML: null,
-      status: 0,
-      readyState: 0,
-      statusText: '',
-      getAllResponseHeaders: $.noop,
-      setRequestHeader: $.noop,
-      open: function(type, url, async) {
-          // create iframe
-          $iframe = $('<iframe name="'+attr.target+'" style="display: none;" src="javascript:;"/>').load(onload).insertAfter(form);
-          // change form attr to submit in to the iframe and ensure other attr are correct
-          $f.attr(attr);
-          // add fields from ajax settings
-          if ( s.data ) {
-              var data = s.data.split('&'),
-                  ajaxData = '';
-              $.each(data, function(i,param){
-                  param = param.split('=');
-                  if ( param[0] && param[1] )
-                      ajaxData += '<input type="hidden" name="' + param[0] + '" value="' + param[1] + '" />';
-              });                
-              $ajaxData = $(ajaxData).appendTo(form);
-          };
-      },
-      send: function() {
-          // submit form 
-          $f.submit();
-      },
-      getResponseHeader: function(type) {
-          return types[type];                 
-      },
-      abort: close
-  };	
+function IframeUploader($form, s ) {
+   this._$form = $form;
+   this._s = s;
+};
+IframeUploader.prototype =  {
+  upload: function() {
+    var s = this._s,
+        $form = this._$form,
+        form = $form[0],
+        // cache original form attributes
+        _attr = {
+            target: form.target,
+            enctype:form.enctype,
+            method: form.method,
+            action: form.action
+        },
+        attr = {
+            target: 'file-upload-' + timestamp++, 
+            enctype: 'multipart/form-data', 
+            method: 'POST',
+            action: s.url
+        },
+        $iframe,
+        $ajaxData;
+    // mock request header types
+    var types = {
+        'content-type': s.dataType,
+        'Last-Modified': null,
+        Etag: null
+    };
   
-  s.xhr = function() {
-      return xhr;
-  };
-  
-  function onload() {
-      var doc = $iframe.contents()[0];
-      $.extend(xhr, {
-          status: 200,
-          readyState: 4,
-          responseText: doc.body ? doc.body.innerHTML : null,
-          responseXML: doc.XMLDocument ? doc.XMLDocument : doc
-      });
-      
-      if ( s.dataType == 'json' || s.dataType == 'script' ) {
-          var ta = doc.getElementsByTagName('textarea')[0];
-          xhr.responseText = ta ? ta.value : xhr.responseText;
-      } else if ( s.dataType == 'xml' && !xhr.responseXML && xhr.responseText != null ) {
-          xhr.responseXML = toXml(xhr.responseText);
-      };
-
-      xhr.onreadystatechange();
-      close();
-  }   
-  
-  function close() {
-      $f.attr(_attr); 
-       
-      // by removing iframe without delay FF still shows loading indicator
-      setTimeout($iframe.remove, 500);
+    // mock xhr object
+    var xhr = $.extend({}, xhrMock, {
+        open: function(type, url, async) {
+            // create iframe
+            $iframe = $('<iframe name="'+attr.target+'" style="display: none;" src="javascript:;"/>').load(onload).insertAfter(form);
+            // change form attr to submit in to the iframe and ensure other attr are correct
+            $form.attr(attr);
+            // add fields from ajax settings
+            if ( s.data ) {
+                var data = s.data.split('&'),
+                    ajaxData = '';
+                $.each(data, function(i,param){
+                    param = param.split('=');
+                    if ( param[0] && param[1] )
+                        ajaxData += '<input type="hidden" name="' + param[0] + '" value="' + param[1] + '" />';
+                });                
+                $ajaxData = $(ajaxData).appendTo(form);
+            };
+        },
+        send: function() {
+            // submit form 
+            $form.submit();
+        },
+        getResponseHeader: function(type) {
+            return types[type];                 
+        },
+        abort: close
+    });	
+    
+    s.xhr = function() {
+        return xhr;
+    };
+    
+    function onload() {
+        var doc = $iframe.contents()[0];
+        $.extend(xhr, {
+            status: 200,
+            readyState: 4,
+            responseText: doc.body ? doc.body.innerHTML : null,
+            responseXML: doc.XMLDocument ? doc.XMLDocument : doc
+        });
+        
+        if ( s.dataType == 'json' || s.dataType == 'script' ) {
+            var ta = doc.getElementsByTagName('textarea')[0];
+            xhr.responseText = ta ? ta.value : xhr.responseText;
+        } else if ( s.dataType == 'xml' && !xhr.responseXML && xhr.responseText != null ) {
+            xhr.responseXML = toXml(xhr.responseText);
+        };
+        s.completeall.call($form, null, xhr);
+        xhr.onreadystatechange();
+        close();
+    }   
+    
+    function close() {
+        $form.attr(_attr);
+        // by removing iframe without delay FF still shows loading indicator
+        setTimeout(function() {  
+          $iframe.remove()
+        } , 500);
+    }
+    
+    $.ajax(s);
   }
-  
-  $.ajax(s);
-}
+};
 
 function sumLoaded(files) {
-  var loaded = 0;
-  for (var i = 0; i < files.length; i++) {
-    loaded += files[i].loaded; 
-  }
-  return loaded;
+    var loaded = 0;
+    for (var i = 0; i < files.length; i++) {
+      loaded += files[i].loaded; 
+    }
+    return loaded;
 }
 
 function toXml( s ) {
@@ -381,4 +429,4 @@ function toXml( s ) {
 }
 
 
-})(jQuery, this, 'fileUpload');
+})(this, window.document, jQuery, 'fileUpload');

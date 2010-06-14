@@ -16,6 +16,7 @@ package com.jimdo.upload {
 	import flash.events.FocusEvent;
   import flash.events.ProgressEvent;
   import flash.events.DataEvent;
+  import flash.events.SecurityErrorEvent;
   import flash.external.ExternalInterface;
   import flash.utils.Dictionary;
 
@@ -27,6 +28,7 @@ package com.jimdo.upload {
 		private var files:Dictionary;
     private var fileRef:FileReference;
     private var id:String;
+    private var callbackName:String;
     private var fileFilters:String;
     private var multipleFiles:Boolean;
     
@@ -43,6 +45,7 @@ package com.jimdo.upload {
       this.id = this.stage.loaderInfo.parameters["id"];
       this.fileFilters = this.stage.loaderInfo.parameters["filters"];
       this.multipleFiles = !!('true' == this.stage.loaderInfo.parameters["multiple"]);
+      this.callbackName = this.stage.loaderInfo.parameters["callbackName"];
       
       // Setup file reference list
 			this.fileRefList = new FileReferenceList();
@@ -127,9 +130,9 @@ package com.jimdo.upload {
           });
         });
         file.addEventListener(DataEvent.UPLOAD_COMPLETE_DATA, function(e:DataEvent):void {
-					var file:File = e.target as File;
-					fireEvent("uploadcomplete", {
+					fireEvent("uploadcompletedata", {
 						fileId : file.id,
+            total: e.target.size,
 						text : e.text
 					});
 				});
@@ -140,7 +143,7 @@ package com.jimdo.upload {
       
       if (this.multipleFiles) {
         for (var i:Number = 0; i < this.fileRefList.fileList.length; i++) {
-          var file:File = new File("file_" + (this.idCounter++), this.fileRefList.fileList[i]);       
+          var file:File = new File("file_" + (this.idCounter++), this.fileRefList.fileList[i]);
           processFile(file);
         }
       } else { 
@@ -176,7 +179,14 @@ package com.jimdo.upload {
 		 * @param obj Object with optional data.
 		 */
 		private function fireEvent(type:String, obj:Object = null):void {
-			ExternalInterface.call("jQuery.fn.fileUpload.flash.trigger", this.id, type, obj);
+      ExternalInterface.call((<![CDATA[
+        function(callbackName, callbackData) {
+          if (typeof window[callbackName] != 'function') {
+            throw ("No flashUploader callback defined with following name: '" + callbackName +"'");            
+          }
+          window[callbackName](callbackData);
+        }
+      ]]>).toString(), this.callbackName, { id: this.id, type: type, obj: obj });
 		}
 
   }
@@ -190,6 +200,8 @@ import flash.net.FileReference;
 import flash.events.Event;
 import flash.events.IOErrorEvent;
 import flash.events.ProgressEvent;
+import flash.events.DataEvent;
+import flash.events.SecurityErrorEvent;
 import flash.external.ExternalInterface;
 import flash.net.URLRequest;
 import flash.net.URLVariables;
@@ -240,7 +252,13 @@ class File extends EventDispatcher {
     this._fileRef.addEventListener(ProgressEvent.PROGRESS,  function(e:Event):void {
       file.dispatchEvent(e);
     });
-       
+    this._fileRef.addEventListener(DataEvent.UPLOAD_COMPLETE_DATA, function(e:DataEvent):void {
+      file.dispatchEvent(e);
+    });
+    this._fileRef.addEventListener(SecurityErrorEvent.SECURITY_ERROR, function(e:DataEvent):void {
+      file.dispatchEvent(e);
+    });
+    
     /* Simple Upload */
     /* No Custom Header - doesn't support cookies. */
     
@@ -253,7 +271,7 @@ class File extends EventDispatcher {
       }
     }
     request.data = variables;
-    this._fileRef.upload(request, "Filedata");
+    var ok:Boolean = this._fileRef.upload(request, "Filedata") as Boolean;
     
   }
 
