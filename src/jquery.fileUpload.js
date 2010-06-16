@@ -71,6 +71,7 @@ $.fn[plugin].defaults = {
     filesadd: $.noop,
     progress: $.noop,
     completeall: $.noop,
+    error: $.noop,
     flash: {
       fileFilters: null,
       init: $.noop,
@@ -194,6 +195,11 @@ function FlashUploader($form, s ) {
   .bind(flasheventprefix+'uploadprogress.' + plugin, function (e, progress) {
       var xhr = self._xhrsHash[progress.fileId];
       xhr.upload.progress(progress);
+  })
+  .bind(flasheventprefix+'uploaderror.' + plugin, function (e, error) {
+      var xhr = self._xhrsHash[error.fileId];
+      // have to find out the error params!
+      xhr.error(error);
   });
 
 };
@@ -244,6 +250,9 @@ FlashUploader.prototype = {
             self.flashObjectEl.flashUploaderSendFile(file.id, s.url, { 
                 params: self._params
             });
+          },
+          error:function(error){ 
+            triggerEvent(self, 'error', [ error,xhr ]);
           },
           upload: {
             progress: function(progress) {

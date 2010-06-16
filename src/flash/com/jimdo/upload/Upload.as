@@ -17,6 +17,7 @@ package com.jimdo.upload {
   import flash.events.ProgressEvent;
   import flash.events.DataEvent;
   import flash.events.SecurityErrorEvent;
+  import flash.events.IOErrorEvent;
   import flash.external.ExternalInterface;
   import flash.utils.Dictionary;
 
@@ -150,7 +151,12 @@ package com.jimdo.upload {
 						text : e.text
 					});
 				});
-        
+        file.addEventListener(IOErrorEvent.IO_ERROR, function(e:IOErrorEvent):void {
+          fireEvent("uploaderror", {
+            fileId : file.id,
+            text: e.text
+          });
+        });
         files[file.id] = file;	
         selectedFiles.push({id : file.id, name : file.fileName, size : file.size, loaded : 0});
       }
@@ -270,7 +276,7 @@ class File extends EventDispatcher {
       }
     }
     request.data = variables;
-    var ok:Boolean = this._fileRef.upload(request, "Filedata") as Boolean;
+    this._fileRef.upload(request, "Filedata") as Boolean;
     
   }
 
