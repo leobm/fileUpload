@@ -71,8 +71,8 @@ $('#test2').fileUpload({
   progress: function(pr, xhr) {
     $bar.progressbar('value', Math.round(100*pr.loaded/pr.total));
   },
-  success: function(r){
-    var href = '/fileupload/server/files/' + r.filename;
+  success: function(sr, res, xhr){
+    $bar.progressbar('value', 100*sr.loaded/sr.total);
   },
   completeall: function(r) {
     console.log("completeall",r);
@@ -94,6 +94,7 @@ $('#test3').fileUpload({
     $("li", ul).remove();
     $.each(files, function(i,file) {
       $('<li />', {
+          id: 'li'+file.id,
           html: $('<span><a href="#remove_file:'+file.id+'">[X]</a></span><span class="file">'+file.name+'</span><span class="file_size">'+Math.round(file.size/1024)+' kb</span>')
       }).appendTo(ul);
     });
@@ -106,8 +107,9 @@ $('#test3').fileUpload({
   progress: function(pr, xhr) {
     $bar.progressbar('value', 100*pr.loaded/pr.total);
   },
-  success: function(r){
-    var href = '/fileupload/server/files/' + r.filename;
+  success: function(sr, xhr) {
+    $('#li'+sr.fileId).fadeTo('slow', 0.3, $.noop);
+    $bar.progressbar('value', 100*sr.loaded/sr.total);
   },
   completeall: function(r) {
     console.log("completeall",r);

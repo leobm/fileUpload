@@ -228,7 +228,7 @@ FlashUploader.prototype = {
             file.complete = true;
             files.loaded ++;
             var loaded = sumLoaded(files);
-            triggerEvent(self, 'progress', [{ loaded: loaded, total: self._totalSize}, xhr ]);
+            triggerEvent(self, 'success', [{ fileId: file.id, loaded: loaded, total: self._totalSize}, xhr ]);
             files.loaded == files.length &&  triggerEvent(self, 'completeall', [
               {files: files, total: self._totalSize, loaded: loaded}, xhr 
             ]);
@@ -249,6 +249,7 @@ FlashUploader.prototype = {
             progress: function(progress) {
               file.loaded = progress.loaded;
               triggerEvent(self, 'progress', [{
+                fileId: file.id,
                 total: self._totalSize,		
                 loaded: sumLoaded(files)
               }, xhr]);
@@ -308,11 +309,11 @@ Html5Uploader.prototype = {
         files.loaded ++;
         var loaded = sumLoaded(files);
         
-        triggerEvent(self, 'progress', [{
-          total: total,		
-          loaded:  loaded
-        }, xhr]);
-        
+        triggerEvent(self, 'success', [{
+          fileId: file.id,
+          loaded: loaded,
+          total: total
+        }, xhr ]);
         files.loaded == files.length && triggerEvent(self, 'completeall', [
            {total: total, loaded: loaded }, xhr
         ]);
