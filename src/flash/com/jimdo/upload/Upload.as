@@ -99,7 +99,11 @@ package com.jimdo.upload {
     private function clearFiles():void {
 			this.files = new Dictionary();
 		}
-
+    
+    /**
+    * removing file from the files Dictionary
+    * and returning new files list
+    */
     private function removeFile(id:String):Array {
       var newFilesList:Array = []; 
 			if (this.files[id] != null)
