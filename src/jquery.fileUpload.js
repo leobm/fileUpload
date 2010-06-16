@@ -201,7 +201,9 @@ function FlashUploader($form, s ) {
 FlashUploader.prototype = {
   destroy: function() {
     delete global[this._flashCallbackName];
-    this._$form.removeData(plugin).html(this._$originContent);
+    this._$form.removeData(plugin)
+    .find('*').unbind('.' + plugin)
+    .html(this._$originContent);
   },
   removeFile: function(fileId) {
     var self = this, 
