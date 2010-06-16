@@ -37,7 +37,7 @@ package com.jimdo.upload {
     
     
     public function Upload():void {
-      stage && init() || addEventListener(Event.ADDED_TO_STAGE, init);
+      addEventListener(Event.ADDED_TO_STAGE, init);
     }
     
     private function init(e:Event = null):void {
@@ -72,15 +72,15 @@ package com.jimdo.upload {
 			this.clickArea.buttonMode = true;
 			this.clickArea.useHandCursor = true;
 			addChild(this.clickArea);
-      this.clickArea.addEventListener(MouseEvent.ROLL_OVER, this.stageEvent);
-			this.clickArea.addEventListener(MouseEvent.ROLL_OUT, this.stageEvent);
-			this.clickArea.addEventListener(FocusEvent.FOCUS_IN, this.stageEvent);
-			this.clickArea.addEventListener(FocusEvent.FOCUS_OUT, this.stageEvent);
+      this.clickArea.addEventListener(MouseEvent.MOUSE_OVER, this.stageEvent);
+      this.clickArea.addEventListener(MouseEvent.MOUSE_OUT, this.stageEvent);
+			this.clickArea.addEventListener(FocusEvent.FOCUS_IN,this.stageEvent);
+      this.clickArea.addEventListener(FocusEvent.FOCUS_OUT,this.stageEvent);
       this.clickArea.addEventListener(MouseEvent.CLICK, this.stageClickEvent);
 
-			ExternalInterface.addCallback('uploadFile', this.uploadFile);
-      ExternalInterface.addCallback('clearQueue', this.clearFiles);
-      ExternalInterface.addCallback('removeFile', this.removeFile);
+			ExternalInterface.addCallback('flashUploaderSendFile', this.uploadFile);
+      ExternalInterface.addCallback('flashUploaderClearQueue', this.clearFiles);
+      ExternalInterface.addCallback('flashUploaderRemoveFile', this.removeFile);
       this.fireEvent("init");
     }
     
@@ -92,13 +92,23 @@ package com.jimdo.upload {
 			}
     }
     
+    private function stageEvent(e:Event):void {
+      this.fireEvent(e.type);
+    }
+    
     private function clearFiles():void {
 			this.files = new Dictionary();
 		}
 
-    private function removeFile(id:String):void {
+    private function removeFile(id:String):Array {
+      var newFilesList:Array = []; 
 			if (this.files[id] != null)
-				delete this.files[id];
+        delete this.files[id];
+      for (id in this.files) {
+        var file:File = this.files[id];
+        newFilesList.push({id : file.id, name : file.fileName, size : file.size, loaded : 0});
+      }
+      return newFilesList;
 		}
 
 		private function cancelEvent(e:Event):void {
@@ -117,7 +127,7 @@ package com.jimdo.upload {
         });
         file.addEventListener(ProgressEvent.PROGRESS, function(e:ProgressEvent):void {          
 					var file:File = e.target as File;
-					fireEvent("uploadprocess", {
+					fireEvent("uploadprogress", {
 						fileId : file.id,
 						loaded : e.bytesLoaded,
 						size : e.bytesTotal
@@ -153,12 +163,8 @@ package com.jimdo.upload {
       this.fireEvent("selectfiles", selectedFiles);
     }
     
-    private function stageEvent(e:Event):void {
-			this.fireEvent("stage" + e.type);
-		}
-    
     private function stageClickEvent(e:Event):void {
-      this.fireEvent("stageclick");
+      this.fireEvent("click");
       try {
         var refBrowse:Object = (this.multipleFiles) ? this.fileRefList : this.fileRef;
         if (this.fileFilters) {
@@ -178,7 +184,7 @@ package com.jimdo.upload {
 		 * @param type Name of event to fire.
 		 * @param obj Object with optional data.
 		 */
-		private function fireEvent(type:String, obj:Object = null):void {
+		private function fireEvent(type:String, data:Object = null):void {
       ExternalInterface.call((<![CDATA[
         function(callbackName, callbackData) {
           if (typeof window[callbackName] != 'function') {
@@ -186,7 +192,7 @@ package com.jimdo.upload {
           }
           window[callbackName](callbackData);
         }
-      ]]>).toString(), this.callbackName, { id: this.id, type: type, obj: obj });
+      ]]>).toString(), this.callbackName, { id: this.id, type: type, data: data });
 		}
 
   }
@@ -235,30 +241,19 @@ class File extends EventDispatcher {
   
   public function upload(url:String, settings:Object):void {
     var file:File = this;
-    var chunk:int, chunks:int, chunkSize:int;
-    chunk = 0;
-    chunkSize = this.size;
-    chunks = 1;
-    	
-    this._fileRef.addEventListener(Event.OPEN, function(e:Event):void {
-      file.dispatchEvent(e);
-    });
-    this._fileRef.addEventListener(Event.COMPLETE, function(e:Event):void {
-      file.dispatchEvent(e);
-    });
-    this._fileRef.addEventListener(IOErrorEvent.IO_ERROR, function(e:Event):void {
-      file.dispatchEvent(e);
-    });
-    this._fileRef.addEventListener(ProgressEvent.PROGRESS,  function(e:Event):void {
-      file.dispatchEvent(e);
-    });
-    this._fileRef.addEventListener(DataEvent.UPLOAD_COMPLETE_DATA, function(e:DataEvent):void {
-      file.dispatchEvent(e);
-    });
-    this._fileRef.addEventListener(SecurityErrorEvent.SECURITY_ERROR, function(e:DataEvent):void {
-      file.dispatchEvent(e);
-    });
-    
+    for each (var evt:String in [
+      Event.OPEN, 
+      Event.COMPLETE, 
+      IOErrorEvent.IO_ERROR,
+      ProgressEvent.PROGRESS,
+      DataEvent.UPLOAD_COMPLETE_DATA,
+      SecurityErrorEvent.SECURITY_ERROR ]){
+      
+        this._fileRef.addEventListener(evt, function(e:Event):void {
+          file.dispatchEvent(e);
+        });
+    }
+
     /* Simple Upload */
     /* No Custom Header - doesn't support cookies. */
     

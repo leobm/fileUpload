@@ -12,12 +12,28 @@
 
 (function(global, document, $, plugin){
 
-  var hasHTML5Upload = function() {
     /* detect if ajax upload is supported */
-    var xhr = $.ajaxSettings.xhr();
-    return !!xhr.upload;    
-  };
-
+  var hasHTML5Upload = !!($.ajaxSettings.xhr().upload),
+      runtimeHash = {
+        html5: (function() { 
+          return hasHTML5Upload ? Html5Uploader : IframeUploader;
+        })(),
+        flash:  (function() { 
+            return $.flash.checkVersion('9.0.0') ? FlashUploader : IframeUploader;
+        })(),
+        iframe: IframeUploader
+      },
+      instantiateUploader = function($form, s) {
+        var inst;
+        $.each(s.runtime.split(/\s+/), function(i,r) {
+          inst = new runtimeHash[r]($form,s);
+          return !inst;
+        });
+        return inst;
+      };
+   
+  var timestamp = (new Date).getTime();
+     
   $.fn[plugin] = function( method, options ) {
     if ( typeof method != 'string' ) {
         options = method;
@@ -27,42 +43,22 @@
     
     var ret = this;
     this.each(function(){
-        
-      var $form = $(this); 
+      var $form = $(this);
+      !s.url && (s = $.extend({}, s, { url: $form.attr('action') }));
       
-      var instance = $.data(this, plugin ) || $.data(this, plugin, (function() {
-        var uploader;
-        !s.url && (s.url = $form.attr('action'));
-  
-        $.each(s.runtime.split(' '), function(i, runtime) {
-          if (runtime=='html5' && hasHTML5Upload()) {
-            uploader = new Html5Uploader($form,s);
-          } else if (runtime=='flash')  {
-            try {
-              uploader = new FlashUploader($form,s);
-            } catch(ex) {
-              // flash error
-            }
-          } else {
-            uploader = new IframeUploader($form,s); 
-          }
-          return !!uploader;
-            
-        });
-        
-        return uploader;
-      })());  /* end init instance */
-    
+      var inst = $.data(this, plugin ) || $.data(this, plugin, instantiateUploader($form,s));  /* end init instance */
       if (method) {
-        ret = instance[method](options)
-      } else {
-        if (typeof instance == 'object') {
-          s.autoStart && $form.bind('change.' + plugin, function(e) { 
-            instance.upload();
-          });
-        }
+        ret = inst[method](options); 
+        return;
       }
-      
+      // add global event handler
+      s.autoStart && $form.bind('change.' + plugin, function(e) { 
+        inst.upload(); 
+      });
+      $form.bind('submit.' + plugin, function(e) {
+        inst.upload();
+        return false;
+      });      
     });
     return ret;
   };
@@ -76,7 +72,16 @@ $.fn[plugin].defaults = {
     autoStart: true,
     filesadd: $.noop,
     progress: $.noop,
-    completeall: $.noop
+    completeall: $.noop,
+    flash: {
+      fileFilters: null,
+      init: $.noop,
+      cancelselect: $.noop,
+      mouseover: $.noop,
+      mouseout: $.noop,
+      swf: 'Upload.swf',
+      button: $('<input />',{ type: 'button', value: 'Add Files' })
+    }
 };
 
 var xhrMock = { 
@@ -90,41 +95,34 @@ var xhrMock = {
     open: $.noop
 };
 
-var timestamp = (new Date).getTime();
 
 function FlashUploader($form, s ) {
-  s = $.extend({
-    fileFilters: null,
-    swf: 'Upload.swf',
-    text: 'Add Files',
-    params: null
-  }, s);
-  var self = this;
   
   this._$form = $form;
   this._files = [];
   this._files.loaded = 0;
-  this._total = 0;
+  this._totalSize = 0;
   this._s = s;
-  this._lookupFile = {};
+  this._filesCache = {};
   this._xhrsHash = {};
   this._$originContent = $form.html();
-  
-  var flashId = ++timestamp + '-flash';
-  
-  var $input = $('input[type="file"]', $form).hide().first();
-  var params = {};
-  $('input[type="hidden"]', $form).each(function() {
-    params[this.name] =  this.value;
-  });
-  this._params = $.extend(params , s.params || {});
-  
+  this._params = s.params || {};
   this._flashCallbackName = plugin+'Callback'+(++timestamp);
-  global[this._flashCallbackName] = function(callbackData) {
-    setTimeout(function() { 
-      $flashContainer.trigger('flash' + callbackData.type, [callbackData.obj])},
-    0);
+  
+  var self = this,
+      flashId = ++timestamp + '-flash',
+      $input = $('input[type="file"]', $form).first().hide(),
+      $flashContainer,
+      $browseButton = s.flash.button, 
+      flasheventprefix = 'flashuploader';
+      
+  $('input[type="hidden"]', $form).each(function() {
+    self._params[this.name] =  this.value;
+  });
+  global[this._flashCallbackName] = function(evt) {
+      $flashContainer.trigger(flasheventprefix + evt.type.toLowerCase(), [evt.data]);
   };
+
   $input
     .wrap($('<div />',{
       css: {
@@ -140,61 +138,66 @@ function FlashUploader($form, s ) {
         height: '100%'
       },
       html: function() {
-        $(this).flash({
-          swf: s.swf,
+        $flashContainer = $(this).flash({
+          swf: s.flash.swf,
+          checkVersion: false,
           version: '9.0.0',
-          attr: { id: flashId, width:'100%', height:'100%' },
+          attr: { 
+            id: flashId, 
+            name: flashId, 
+            data: s.flash.swf,
+            width:'100%',
+            height:'100%' 
+          },
           params: {
             flashvars: {
               id: flashId,
-              filters: s.fileFilters || '',
+              filters: s.flash.fileFilters || '',
               multiple: !!($input.attr('multiple')),
               callbackName: self._flashCallbackName
             }
           }
         });
-        self.flashObject = $(this).flash('get')
+        self.flashObjectEl = $flashContainer.flash('get');
       }
     }))
-    .before($('<input />',{ type: 'button', value: s.text }))
-    .parent()
-      .width($input.prev().outerWidth(true))
-      .height($input.prev().outerHeight(true));
-  
-  var $flashContainer = $(self.flashObject).parent();
-  
-  $flashContainer.bind('flashinit.' + plugin , function() {
+    .before($browseButton)
+    .parent() 
+    .width($browseButton.outerWidth(true)).height($browseButton.outerHeight(true));
+
+  $flashContainer.bind(flasheventprefix+'init.' + plugin , function(e, data) {
+      s.flash.init.apply($flashContainer, data);
   })
-  .bind('flashcancelselect.' + plugin , function() {
+  .bind(flasheventprefix+'cancelselect.' + plugin , function(e, data) {
+      s.flash.cancelselect.apply($flashContainer, data);
   })
-  .bind('flashstagerollover.' + plugin, function() {
+  .bind(flasheventprefix+'mouseover.' + plugin, function(e, data) {
+      s.flash.mouseover.apply($flashContainer, data);
   })
-  .bind('flashselectfiles.' + plugin , function(e, selectedFiles) {
+   .bind(flasheventprefix+'mouseout.' + plugin, function(e, data) {
+      s.flash.mouseout.apply($flashContainer, data);
+  })
+  .bind(flasheventprefix+'selectfiles.' + plugin , function(e, selectedFiles) {
       var files = self._files;
-      for (var i = 0; i < selectedFiles.length; i++) {
-        var file = selectedFiles[i];
+      $.each(selectedFiles, function(i,file) {
         files.push(file);
-        self._lookupFile[file.id] = i;
-        self._total+= file.size;
-      }
+        self._filesCache[file.id] = files.length-1;
+        self._totalSize+= file.size;
+      });
       s.filesadd.apply($form, [files]);
-      $(this)
+      $form
         .trigger("filesadd",files)
         .trigger("change");
   })
-  .bind('flashuploadcompletedata.' + plugin, function(e, load) {
+  .bind(flasheventprefix+'uploadcompletedata.' + plugin, function(e, load) {
       var xhr = self._xhrsHash[load.fileId];
       xhr.onload(load);
   })
-  .bind('flashuploadprocess.' + plugin, function (e, progress) {
+  .bind(flasheventprefix+'uploadprogress.' + plugin, function (e, progress) {
       var xhr = self._xhrsHash[progress.fileId];
       xhr.upload.progress(progress);
   });
 
-  $form.bind('submit.' + plugin, function(e) {
-     self.upload(); 
-     return false;
-  });
 };
 
 FlashUploader.prototype = {
@@ -203,9 +206,16 @@ FlashUploader.prototype = {
     this._$form.removeData(plugin).html(this._$originContent);
   },
   removeFile: function(fileId) {
-    var file = this._files[this._lookupFile[fileId]];
-    this._total -= file.size;
-    this.flashObject.removeFile(fileId);          
+    var self = this, 
+        fileIdx = this._filesCache[fileId],
+        file = this._files[fileIdx];
+    this._totalSize -= file.size;
+    this._files = this.flashObjectEl.flashUploaderRemoveFile(fileId);
+    // rebuild files cache
+    self._filesCache = {};
+    $.each(this._files, function(i,file) {
+        self._filesCache[file.id] = i;
+    });
   },
   upload: function() {
     var self = this,
@@ -218,9 +228,9 @@ FlashUploader.prototype = {
             file.complete = true;
             files.loaded ++;
             var loaded = sumLoaded(files);
-            triggerEvent(self, 'progress', [{ loaded: loaded, total: self._total}, xhr ]);
+            triggerEvent(self, 'progress', [{ loaded: loaded, total: self._totalSize}, xhr ]);
             files.loaded == files.length &&  triggerEvent(self, 'completeall', [
-              {files: files, total: self._total, loaded: loaded}, xhr 
+              {files: files, total: self._totalSize, loaded: loaded}, xhr 
             ]);
             
             $.extend(xhr, {
@@ -231,7 +241,7 @@ FlashUploader.prototype = {
             xhr.onreadystatechange();
           },            
           send: function() {
-            self.flashObject.uploadFile(file.id, s.url, { 
+            self.flashObjectEl.flashUploaderSendFile(file.id, s.url, { 
                 params: self._params
             });
           },
@@ -239,7 +249,7 @@ FlashUploader.prototype = {
             progress: function(progress) {
               file.loaded = progress.loaded;
               triggerEvent(self, 'progress', [{
-                total: self._total,		
+                total: self._totalSize,		
                 loaded: sumLoaded(files)
               }, xhr]);
             }
@@ -258,14 +268,14 @@ FlashUploader.prototype = {
 function Html5Uploader( $form, s ) {
   this._$form = $form;
   this._files = [];
-  this._total = 0;
+  this._totalSize = 0;
   this._files.loaded = 0;
   this._s = s;
 };
 Html5Uploader.prototype = {
   upload: function() {
     var self = this, s = this._s,
-        $form = this._$form, files = this._files, total = this._total;
+        $form = this._$form, files = this._files, total = this._totalSize;
         
     var _xhr = s.xhr;
     $('[type="file"]', this._$form).each(function( i, elem ) {     
