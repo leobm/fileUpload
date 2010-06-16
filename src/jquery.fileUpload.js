@@ -101,7 +101,7 @@ function FlashUploader($form, s ) {
   this._files.loaded = 0;
   this._totalSize = 0;
   this._s = s;
-  this._filesCache = {};
+  this._filesIndex = {};
   this._xhrsHash = {};
   this._$originContent = $form.html();
   this._params = s.params || {};
@@ -179,7 +179,7 @@ function FlashUploader($form, s ) {
       var files = self._files;
       $.each(selectedFiles, function(i,file) {
         files.push(file);
-        self._filesCache[file.id] = files.length-1;
+        self._filesIndex[file.id] = files.length-1;
         self._totalSize+= file.size;
       });
       s.filesadd.apply($form, [files]);
@@ -207,14 +207,14 @@ FlashUploader.prototype = {
   },
   removeFile: function(fileId) {
     var self = this, 
-        fileIdx = this._filesCache[fileId],
+        fileIdx = this._filesIndex[fileId],
         file = this._files[fileIdx];
     this._totalSize -= file.size;
     this._files = this.flashObjectEl.flashUploaderRemoveFile(fileId);
     // rebuild files cache
-    self._filesCache = {};
+    self._filesIndex = {};
     $.each(this._files, function(i,file) {
-        self._filesCache[file.id] = i;
+        self._filesIndex[file.id] = i;
     });
   },
   upload: function() {
