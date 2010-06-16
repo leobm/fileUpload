@@ -82,6 +82,7 @@ package com.jimdo.upload {
 			ExternalInterface.addCallback('flashUploaderSendFile', this.uploadFile);
       ExternalInterface.addCallback('flashUploaderClearQueue', this.clearFiles);
       ExternalInterface.addCallback('flashUploaderRemoveFile', this.removeFile);
+      ExternalInterface.addCallback('flashUploaderCancelFileUpload', this.cancelFileUpload);
       this.fireEvent("init");
     }
     
@@ -91,6 +92,11 @@ package com.jimdo.upload {
 				this.currentFile = file;
 				file.upload(url, settings);
 			}
+    }
+    
+    private function cancelFileUpload(id:String):void {
+      	var file:File = this.files[id] as File;
+      file && file.cancelUpload();
     }
     
     private function stageEvent(e:Event):void {
@@ -276,8 +282,10 @@ class File extends EventDispatcher {
       }
     }
     request.data = variables;
-    this._fileRef.upload(request, "Filedata") as Boolean;
-    
+    this._fileRef.upload(request, "Filedata");
   }
-
+  
+  public function cancelUpload():void {
+    this._fileRef.cancel();	
+  }
 }
