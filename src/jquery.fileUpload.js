@@ -52,9 +52,7 @@
         return;
       }
       // add global event handler
-      s.autoStart && $form.bind('change.' + plugin, function(e) { 
-        inst.upload(); 
-      });
+      s.autoStart && $form.bind('change.' + plugin, $.proxy(inst, 'upload'));
       $form.bind('submit.' + plugin, function(e) {
         inst.upload();
         return false;
