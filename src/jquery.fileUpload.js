@@ -49,14 +49,14 @@
       var inst = $.data(this, plugin ) || $.data(this, plugin, instantiateUploader($form,s));  /* end init instance */
       if (method) {
         ret = inst[method](options); 
-        return;
+      } else {
+        // add global event handler
+        s.autoStart && $form.bind('change.' + plugin, $.proxy(inst, 'upload'));
+        $form.bind('submit.' + plugin, function(e) {
+          inst.upload();
+          return false;
+        });
       }
-      // add global event handler
-      s.autoStart && $form.bind('change.' + plugin, $.proxy(inst, 'upload'));
-      $form.bind('submit.' + plugin, function(e) {
-        inst.upload();
-        return false;
-      });      
     });
     return ret;
   };
@@ -198,7 +198,7 @@ function FlashUploader($form, s ) {
   })
   .bind(flasheventprefix+'uploaderror.' + plugin, function (e, error) {
       var xhr = self._xhrsHash[error.fileId];
-      // have to find out the error params!
+      // have to find out the real error params!
       xhr.error(error);
   });
 
@@ -227,6 +227,11 @@ FlashUploader.prototype = {
     var self = this,
     s = this._s, $form = this._$form, files = this._files;
     $.each(files, function(i, file){ 
+      var types = {
+        'content-type': s.dataType,
+        'Last-Modified': null,
+        Etag: null
+      };
       // mock xhr object
       var xhr = $.extend({}, xhrMock, {
           onload: function(load) {
@@ -242,7 +247,8 @@ FlashUploader.prototype = {
             $.extend(xhr, {
               status: 200,
               readyState: 4,
-              responseText: load.text
+              responseText: load.text,
+              responseXML: load.text
             });
             xhr.onreadystatechange();
           },            
@@ -263,6 +269,9 @@ FlashUploader.prototype = {
                 loaded: sumLoaded(files)
               }, xhr]);
             }
+          },
+          getResponseHeader: function(type) {
+            return types[type];                 
           }
       });
       

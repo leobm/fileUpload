@@ -33,7 +33,7 @@
 	<input type="file" name="second" multiple="multiple" /><br />
 </form>
 
-<form id="test3" action="/fileupload/server/test3.php">
+<form id="test3" action="../server/test3.php">
   <fieldset style="border: 1px solid #000">
 	  <legend>Flash Upload:</legend>
 	  <input type="file"  multiple="multiple" /><br />
@@ -112,7 +112,10 @@ $('#test3').fileUpload({
     $bar.progressbar('value', 100*sr.loaded/sr.total);
   },
   completeall: function(r) {
-    console.log("completeall",r);
+    //console.log("completeall",r);
+  },
+  error: function(err,xhr) {
+    console.error(err, xhr);
   }
 });
 </script>
